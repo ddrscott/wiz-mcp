@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "n8n": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "supergateway",
+        "--sse",
+        "https://n8n.ljs.app/mcp/gmail-v2/sse",
+        "--header",
+        "Authorization: Bearer your-token-here"
+      ]
+    }
+  }
+}

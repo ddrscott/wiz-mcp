@@ -1,40 +1,55 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "click",
-#     "smolagents[litellm,mcp]",
+#     "qwen-agent[gui,mcp]",
 # ]
 # ///
 
-import click
-from smolagents import MCPClient, CodeAgent, LiteLLMModel
-from mcp import StdioServerParameters
+import os
+import json
 
-@click.command()
-@click.option('--llm-model', '-m', default='ollama/gemma3:latest', help='The model to use for the agent.')
-@click.option('--llm-url', '-u', default='http://localhost:11434', help='The base URL for the LLM API.')
-@click.option('--n8n-sse-url', '-s', default='https://n8n.localhost.com/mcp/gmail-v2/sse', help='The SSE URL for the MCP server.')
-@click.option('--n8n-api-key', '-k', required=True, help='The API key for N8N.')
-@click.option('--temperature', '-t', default=0.1, help='The temperature for the LLM model.')
-@click.argument("messages", type=str, nargs=-1)
-def main(llm_model, llm_url, n8n_sse_url, n8n_api_key, temperature, messages):
-    messages = ' '.join(messages)
-    server_parameters = StdioServerParameters(
-        command="npx",
-        args=[
-          "-y",
-          "supergateway",
-          "--sse",
-          n8n_sse_url,
-          "--header",
-          f"Authorization: Bearer {n8n_api_key}",
-        ],
+from qwen_agent.agents import Assistant
+from qwen_agent.gui import WebUI
+
+ROOT_RESOURCE = os.path.join(os.path.dirname(__file__), 'resource')
+
+
+def init_agent_service():
+    llm_cfg = {
+        'model': 'qwen3:14b',
+        'model_server': 'https://webui.dataturd.com/api/',  # base_url, also known as api_base
+        'api_key': os.environ.get('WEBUI_API_KEY', None)
+    }
+    system = ('You are a helpful assistant that uses N8N to help the user.')
+    tools = [json.loads(open('server.json').read())]
+    bot = Assistant(
+        llm=llm_cfg,
+        name='Nate',
+        description='N8n Assistant',
+        system_message=system,
+        function_list=tools,
     )
-    llm = LiteLLMModel(model_id=llm_model, api_base=llm_url, temperature=temperature)
 
-    with MCPClient([server_parameters]) as tools:
-        agent = CodeAgent(tools=tools, model=llm)
-        agent.run(messages)
+    return bot
 
-if __name__ == "__main__":
-    main()
+
+def app_gui():
+    # Define the agent
+    bot = init_agent_service()
+    chatbot_config = {
+        'name': 'Nate',
+        'input.placeholder': 'What can I do for you?',
+        'prompt.suggestions': [
+            'Draft and email to scott@pierce.com about the meeting next week',
+            'How much older is Tom Hanks than Tom Holland in days?',
+            'Which teams will be in the NBA finals this year? And what are their chances of winning?',
+        ]
+    }
+    WebUI(
+        bot,
+        chatbot_config=chatbot_config,
+    ).run()
+
+
+if __name__ == '__main__':
+    app_gui()
